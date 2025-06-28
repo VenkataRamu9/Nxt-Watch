@@ -46,8 +46,6 @@ const apiStatusConstants = {
 }
 
 class VideoDetails extends Component {
-  static contextType = CartContext
-
   state = {
     videoDetails: [],
     apiStatus: apiStatusConstants.initial,
@@ -56,15 +54,13 @@ class VideoDetails extends Component {
     isDisliked: false,
   }
 
-
   componentDidMount() {
     this.getVideoDetails()
   }
 
   getVideoDetails = async () => {
     const {match} = this.props
-    const {params} = match
-    const {id} = params
+    const {id} = match.params
 
     this.setState({apiStatus: apiStatusConstants.inProgress})
 
@@ -75,40 +71,40 @@ class VideoDetails extends Component {
       method: 'GET',
     }
 
-    const response = await fetch(apiUrl, options)
-    if (response.ok) {
-      const fetchedData = await response.json()
-      const updatedData = {
-        id: fetchedData.video_details.id,
-        publishedAt: fetchedData.video_details.published_at,
-        description: fetchedData.video_details.description,
-        title: fetchedData.video_details.title,
-        videoUrl: fetchedData.video_details.video_url,
-        viewCount: fetchedData.video_details.view_count,
-        thumbnailUrl: fetchedData.video_details.thumbnail_url,
-        channel: {
-          name: fetchedData.video_details.channel.name,
-          profileImageUrl:
-            fetchedData.video_details.channel.profile_image_url,
-          subscriberCount:
-            fetchedData.video_details.channel.subscriber_count,
-        },
-      }
+    try {
+      const response = await fetch(apiUrl, options)
+      if (response.ok) {
+        const data = await response.json()
+        const video = data.video_details
+        const updatedData = {
+          id: video.id,
+          publishedAt: video.published_at,
+          description: video.description,
+          title: video.title,
+          videoUrl: video.video_url,
+          viewCount: video.view_count,
+          thumbnailUrl: video.thumbnail_url,
+          channel: {
+            name: video.channel.name,
+            profileImageUrl: video.channel.profile_image_url,
+            subscriberCount: video.channel.subscriber_count,
+          },
+        }
 
-      this.setState(
-        {
+        const {savedVideos} = this.context
+        const isSaved = savedVideos.some(
+          savedVideo => savedVideo.id === updatedData.id,
+        )
+
+        this.setState({
           videoDetails: updatedData,
           apiStatus: apiStatusConstants.success,
-        },
-        () => {
-          const {savedVideos} = this.context
-          const isSaved = savedVideos.some(
-            video => video.id === updatedData.id,
-          )
-          this.setState({isVideoSaved: isSaved})
-        },
-      )
-    } else {
+          isVideoSaved: isSaved,
+        })
+      } else {
+        this.setState({apiStatus: apiStatusConstants.failure})
+      }
+    } catch {
       this.setState({apiStatus: apiStatusConstants.failure})
     }
   }
@@ -129,34 +125,29 @@ class VideoDetails extends Component {
         const {name, profileImageUrl, subscriberCount} = channel
         const {addToSaveVideos, removeSaveVideos, savedVideos} = value
 
-        const addOrRemoveItem = () => {
+        const handleSave = () => {
           if (isVideoSaved) {
             removeSaveVideos(id)
           } else {
             addToSaveVideos({...videoDetails, videoSaved: true})
           }
+          this.setState(prev => ({isVideoSaved: !prev.isVideoSaved}))
         }
 
-        const saveVideoToList = () => {
-          this.setState(prev => ({isVideoSaved: !prev.isVideoSaved}), addOrRemoveItem)
-        }
-
-        const onClickLikeButton = () => {
+        const handleLike = () => {
           this.setState(prev => ({isLiked: !prev.isLiked, isDisliked: false}))
         }
 
-        const onClickDislikeButton = () => {
+        const handleDislike = () => {
           this.setState(prev => ({
             isDisliked: !prev.isDisliked,
             isLiked: false,
           }))
         }
 
-        const likeClass = isLiked ? '#2563eb' : '#64748b'
-        const dislikeClass = isDisliked ? '#2563eb' : '#64748b'
-
-        const likeIcon = isLiked ? <AiFillLike /> : <AiOutlineLike />
-        const dislikeIcon = isDisliked ? <AiFillDislike /> : <AiOutlineDislike />
+        const likeColor = isLiked ? '#2563eb' : '#64748b'
+        const dislikeColor = isDisliked ? '#2563eb' : '#64748b'
+        const savedColor = isVideoSaved ? '#4f46e5' : '#181818'
 
         return (
           <div data-testid="videoItemDetails">
@@ -164,36 +155,44 @@ class VideoDetails extends Component {
             <HomeContainer>
               <SideBar />
               <VideoDetailsSideContainer>
-                <ReactPlayer url={videoUrl} controls width="90%" height="500px" />
+                <ReactPlayer
+                  url={videoUrl}
+                  controls
+                  width="90%"
+                  height="500px"
+                />
                 <VideoDetailsTextContainer>
                   <VideoDetailsTitle>{title}</VideoDetailsTitle>
                   <ViewsDetailsContainer>
-                    <ViewsText>{viewCount} views </ViewsText>
+                    <ViewsText>{viewCount} views</ViewsText>
                     <ViewsText>{publishedAt}</ViewsText>
                     <LikesContainer>
                       <IconContainer
                         type="button"
-                        color={likeClass}
-                        onClick={onClickLikeButton}
+                        color={likeColor}
+                        onClick={handleLike}
                       >
-                        {likeIcon}
-                        <ViewsText color={likeClass}>Like</ViewsText>
+                        {isLiked ? <AiFillLike /> : <AiOutlineLike />}
+                        <ViewsText color={likeColor}>Like</ViewsText>
                       </IconContainer>
                       <IconContainer
-                        color={dislikeClass}
                         type="button"
-                        onClick={onClickDislikeButton}
+                        color={dislikeColor}
+                        onClick={handleDislike}
                       >
-                        {dislikeIcon}
-                        <ViewsText color={dislikeClass}>Dislike</ViewsText>
+                        {isDisliked ? <AiFillDislike /> : <AiOutlineDislike />}
+                        <ViewsText color={dislikeColor}>Dislike</ViewsText>
                       </IconContainer>
                       <IconContainer
-                        onClick={saveVideoToList}
-                        color={isVideoSaved ? '#4f46e5' : '#181818'}
+                        type="button"
+                        color={savedColor}
+                        onClick={handleSave}
                       >
                         <RiPlayListAddFill />
-                        <ViewsText color={isVideoSaved ? '#4f46e5' : '#181818'}>
-                          {savedVideos.some(v => v.id === id) ? 'Saved' : 'Save'}
+                        <ViewsText color={savedColor}>
+                          {savedVideos.some(v => v.id === id)
+                            ? 'Saved'
+                            : 'Save'}
                         </ViewsText>
                       </IconContainer>
                     </LikesContainer>
@@ -206,7 +205,7 @@ class VideoDetails extends Component {
                     <ChannelDetailsContainer>
                       <ViewsText>{name}</ViewsText>
                       <ViewsText>{subscriberCount} Subscribers</ViewsText>
-                      <ViewsText> {description}</ViewsText>
+                      <ViewsText>{description}</ViewsText>
                     </ChannelDetailsContainer>
                   </ChannelContainer>
                 </VideoDetailsTextContainer>
@@ -261,5 +260,6 @@ class VideoDetails extends Component {
   }
 }
 
-export default VideoDetails
+VideoDetails.contextType = CartContext
 
+export default VideoDetails
